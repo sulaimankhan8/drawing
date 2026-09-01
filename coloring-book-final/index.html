@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Coloring Masterpiece</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --secondary: #8b5cf6;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --radius: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  user-select: none;
+}
+
+/* ===== Home View ===== */
+#homeView {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  text-align: center;
+  padding: 20px;
+  position: relative;
+}
+.home-icon-top-left { position: absolute; top: 20px; left: 20px; font-size: 1.5rem; }
+.home-icon-top-right {
+  position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2);
+  border: none; color: white; width: 40px; height: 40px; border-radius: 50%;
+  cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+}
+.home-badge {
+  position: absolute; top: 80px; left: 20px; background: #fbbf24; color: #1e293b;
+  width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-weight: 800; font-size: 1.2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.home-title { font-size: 3rem; font-weight: 800; margin-bottom: 10px; text-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.home-subtitle { font-size: 1.2rem; margin-bottom: 50px; opacity: 0.9; font-weight: 500; }
+.category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 700px; width: 100%; }
+.category-card {
+  background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 16px; padding: 25px 15px; cursor: pointer; color: white; display: flex;
+  flex-direction: column; align-items: center; gap: 12px; transition: all 0.3s ease;
+}
+.category-card:hover { background: rgba(255,255,255,0.3); transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+.category-card i { font-size: 2.5rem; }
+.category-card span { font-size: 1.1rem; font-weight: 600; }
+
+/* ===== Canvas View ===== */
+#canvasView { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+.header { background: var(--surface); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); z-index: 10; }
+.header-left { display: flex; align-items: center; gap: 15px; }
+.header-left h1 { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.header-btn {
+  background: #f1f5f9; color: #334155; border: none; padding: 8px 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;
+}
+.header-btn:hover { background: #e2e8f0; }
+.header-btn.primary { background: var(--primary); color: white; }
+.header-btn.primary:hover { background: var(--primary-dark); }
+.header-btn.danger { background: #ef4444; color: white; }
+.header-btn.danger:hover { background: #dc2626; }
+
+.app-container { display: grid; grid-template-columns: 200px 1fr 240px; gap: 15px; padding: 15px; flex: 1; overflow: hidden; }
+.panel { background: var(--surface); border-radius: var(--radius); padding: 15px; box-shadow: var(--shadow); overflow-y: auto; }
+.panel-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+.tool-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.tool-btn {
+  position: relative; overflow: hidden;
+  aspect-ratio: 1; border: 2px solid var(--border); background: var(--surface); border-radius: 8px;
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text); transition: all 0.18s ease;
+}
+.tool-btn i { font-size: 22px; color: var(--text-muted); transition: transform 0.18s ease, color 0.18s ease; }
+.tool-btn:hover:not(.active) { border-color: var(--primary); background: #eef2ff; transform: translateY(-1px); }
+.tool-btn:hover:not(.active) i { color: var(--primary); transform: scale(1.1); }
+.tool-btn.active { border-color: var(--primary); background: var(--primary); color: white; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(99,102,241,0.25); }
+.tool-btn.active i { color: white; transform: scale(1.18); }
+.tool-btn.active::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: white; }
+
+.canvas-area { display: flex; flex-direction: column; align-items: center; gap: 15px; overflow-y: auto; }
+.canvas-wrapper { background: white; border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; position: relative; }
+#drawingCanvas { display: block; background: white; border-radius: 4px; cursor: crosshair; touch-action: none; max-width: 100%; height: auto; }
+
+.bottom-panel { background: var(--surface); padding: 10px; border-radius: var(--radius); box-shadow: var(--shadow); display: flex; gap: 15px; overflow-x: auto; width: 100%; max-width: 624px; justify-content: flex-start; }
+.thumb-canvas { width: 80px; height: 80px; border: 2px solid var(--border); border-radius: 8px; cursor: pointer; background: white; flex-shrink: 0; }
+.thumb-canvas:hover { border-color: var(--primary); }
+.thumb-canvas.active { border-color: var(--primary); background: #eef2ff; }
+
+.color-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.color-swatch { aspect-ratio: 1; border-radius: 50%; cursor: pointer; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border); transition: transform 0.15s; }
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.active { box-shadow: 0 0 0 2px var(--primary); transform: scale(1.15); }
+
+.size-control { margin-top: 25px; }
+.size-control label { font-size: 14px; font-weight: 600; display: block; margin-bottom: 10px; }
+.size-slider { width: 100%; -webkit-appearance: none; height: 6px; background: var(--border); border-radius: 3px; outline: none; }
+.size-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: var(--primary); border-radius: 50%; cursor: pointer; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.size-value { text-align: center; margin-top: 5px; font-weight: 600; color: var(--text-muted); }
+
+/* Object Palettes (Stickers/Shapes) */
+.obj-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+.obj-item { aspect-ratio: 1; border: 2px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; background: white; }
+.obj-item:hover { border-color: var(--primary); background: #eef2ff; }
+.obj-item.active { border-color: var(--primary); background: #eef2ff; box-shadow: 0 0 0 2px var(--primary); }
+.obj-item i { font-size: 20px; color: var(--text); }
+
+#toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--text); color: white; padding: 12px 24px; border-radius: 30px; font-weight: 600; z-index: 1000; opacity: 0; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 768px) {
+  .app-container { grid-template-columns: 1fr; overflow-y: auto; }
+  .left-panel, .right-panel { max-height: none; overflow: visible; }
+  .tool-grid { grid-template-columns: repeat(6, 1fr); }
+  .color-grid { grid-template-columns: repeat(12, 1fr); }
+  .home-title { font-size: 2rem; }
+  .category-grid { grid-template-columns: repeat(2, 1fr); }
+  .header { flex-wrap: wrap; gap: 10px; }
+  .header-actions { width: 100%; justify-content: flex-start; }
+  .header-btn { padding: 6px 12px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Home View -->
+<div id="homeView">
+  <div class="home-icon-top-left"><i class="fas fa-palette"></i></div>
+  <button class="home-icon-top-right"><i class="fas fa-volume-up"></i></button>
+  <div class="home-badge">10</div>
+  <h1 class="home-title">Coloring Masterpiece</h1>
+  <p class="home-subtitle">Choose a category and start coloring!</p>
+  <div class="category-grid">
+    <div class="category-card" data-category="fruits"><i class="fas fa-apple-alt"></i><span>Fruits</span></div>
+    <div class="category-card" data-category="animals"><i class="fas fa-paw"></i><span>Animals</span></div>
+    <div class="category-card" data-category="vegetables"><i class="fas fa-carrot"></i><span>Vegetables</span></div>
+    <div class="category-card" data-category="birds"><i class="fas fa-dove"></i><span>Birds</span></div>
+    <div class="category-card" data-category="insects"><i class="fas fa-bug"></i><span>Insects</span></div>
+    <div class="category-card" data-category="fish"><i class="fas fa-fish"></i><span>Fish</span></div>
+    <div class="category-card" data-category="flowers"><i class="fas fa-spa"></i><span>Flowers</span></div>
+    <div class="category-card" data-category="vehicles"><i class="fas fa-car"></i><span>Vehicles</span></div>
+    <div class="category-card" data-category="yourimage"><i class="fas fa-image"></i><span>Your Image</span></div>
+  </div>
+</div>
+
+<!-- Canvas View -->
+<div id="canvasView">
+  <div class="header">
+    <div class="header-left">
+      <button class="header-btn" id="homeBtn"><i class="fas fa-home"></i> Home</button>
+      <h1 id="categoryTitle">Fruits</h1>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" id="undoBtn"><i class="fas fa-undo"></i> Undo</button>
+      <button class="header-btn" id="resetBtn"><i class="fas fa-redo-alt"></i> Reset</button>
+      <button class="header-btn" id="blankBtn"><i class="fas fa-square"></i> Blank</button>
+      <button class="header-btn" id="printBtn"><i class="fas fa-print"></i> Print</button>
+      <button class="header-btn danger" id="deleteBtn" style="display:none;" ><i class="fas fa-trash"></i> Delete</button>
+      <button class="header-btn primary" id="saveBtn"><i class="fas fa-download"></i> Save</button>
+    </div>
+  </div>
+  
+  <div class="app-container">
+    <div class="left-panel panel">
+      <div class="panel-title">Tools</div>
+      <div class="tool-grid">
+        <button class="tool-btn active" data-tool="fill"><i class="fas fa-fill-drip"></i><span>Fill</span></button>
+        <button class="tool-btn" data-tool="pencil"><i class="fas fa-pencil"></i><span>Pencil</span></button>
+        <button class="tool-btn" data-tool="brush"><i class="fas fa-paintbrush"></i><span>Brush</span></button>
+        <button class="tool-btn" data-tool="eraser"><i class="fas fa-eraser"></i><span>Eraser</span></button>
+        <button class="tool-btn" data-tool="text"><i class="fas fa-font"></i><span>Text</span></button>
+        <button class="tool-btn" data-tool="shape"><i class="fas fa-shapes"></i><span>Shape</span></button>
+        <button class="tool-btn" data-tool="sticker"><i class="fas fa-star"></i><span>Sticker</span></button>
+        <button class="tool-btn" data-tool="select"><i class="fas fa-arrow-pointer"></i><span>Select</span></button>
+      </div>
+    </div>
+    
+    <div class="canvas-area">
+      <div class="canvas-wrapper">
+        <canvas id="drawingCanvas" width="600" height="600"></canvas>
+      </div>
+      <div class="bottom-panel" id="thumbnails"></div>
+    </div>
+    
+    <div class="right-panel panel">
+      <div class="panel-title">Palette</div>
+      <div class="color-grid" id="colorGrid"></div>
+      
+      <div class="size-control">
+        <label id="sizeLabel">Brush Size</label>
+        <input type="range" class="size-slider" id="sizeSlider" min="1" max="100" value="10" >
+        <div class="size-value" id="sizeValue">10px</div>
+      </div>
+
+      <div id="shapesPanel" style="display:none;">
+        <div class="panel-title" style="margin-top:20px;">Shapes</div>
+        <div class="obj-grid" id="shapeGrid"></div>
+      </div>
+
+      <div id="stickersPanel" style="display:none;">
+        <div class="panel-title" style="margin-top:20px;">Stickers</div>
+        <div class="obj-grid" id="stickerGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none;">
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
