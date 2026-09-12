@@ -130,11 +130,17 @@ const coloringPages = {
     { name: 'Watermelon', src: 'assets/stencils/fruits/watermelon.svg' }
   ],
   animals: [
+    { name: 'Deer', src: 'assets/stencils/animals/deer.svg' },
+    { name: 'Dog', src: 'assets/stencils/animals/dog.svg' },
     { name: 'Elephant', src: 'assets/stencils/animals/elephant.svg' },
     { name: 'Giraffe', src: 'assets/stencils/animals/giraffe.svg' },
+    { name: 'Goat', src: 'assets/stencils/animals/goat.svg' },
     { name: 'Lion', src: 'assets/stencils/animals/lion.svg' },
     { name: 'Panda', src: 'assets/stencils/animals/panda.svg' },
-    { name: 'Rabbit', src: 'assets/stencils/animals/rabbit.svg' },
+    { name: 'Raptor', src: 'assets/stencils/animals/raptor.svg' },
+    { name: 'Squirrel', src: 'assets/stencils/animals/squirrel.svg' },
+    { name: 'Tiger', src: 'assets/stencils/animals/tiger.svg' },
+    { name: 'Turtle', src: 'assets/stencils/animals/turtle.svg' },
     { name: 'Zebra', src: 'assets/stencils/animals/zebra.svg' }
   ],
   vegetables: [
@@ -158,8 +164,10 @@ const coloringPages = {
     { name: 'Bee', src: 'assets/stencils/insects/bee.svg' },
     { name: 'Butterfly', src: 'assets/stencils/insects/butterfly.svg' },
     { name: 'Dragonfly', src: 'assets/stencils/insects/dragonfly.svg' },
+    { name: 'Fly', src: 'assets/stencils/insects/fly.png' },
     { name: 'Grasshopper', src: 'assets/stencils/insects/grasshopper.svg' },
-    { name: 'Ladybug', src: 'assets/stencils/insects/ladybug.svg' }
+    { name: 'Ladybug', src: 'assets/stencils/insects/ladybug.svg' },
+    { name: 'Tarantula', src: 'assets/stencils/insects/trantura.svg' }
   ],
   fish: [
     { name: 'Clownfish', src: 'assets/stencils/fish/clownfish.svg' },
@@ -178,12 +186,12 @@ const coloringPages = {
     { name: 'Tulip', src: 'assets/stencils/flowers/tulip.svg' }
   ],
   vehicles: [
-    { name: 'Car', src: 'assets/stencils/vehicles/car.svg' },
-    { name: 'Bike', src: 'assets/stencils/vehicles/bike.svg' },
     { name: 'Airplane', src: 'assets/stencils/vehicles/airplane.svg' },
+    { name: 'Bike', src: 'assets/stencils/vehicles/bike.svg' },
     { name: 'Boat', src: 'assets/stencils/vehicles/boat.svg' },
-    { name: 'Truck', src: 'assets/stencils/vehicles/truck.svg' },
-    { name: 'Train', src: 'assets/stencils/vehicles/train.svg' }
+    { name: 'Car', src: 'assets/stencils/vehicles/car.svg' },
+    { name: 'Train', src: 'assets/stencils/vehicles/train.svg' },
+    { name: 'Truck', src: 'assets/stencils/vehicles/truck.svg' }
   ]
 };
 
@@ -272,9 +280,11 @@ function loadThumbnails(category) {
       loadStencilImage(page.src).then(img => {
         tctx.imageSmoothingEnabled = true;
         tctx.imageSmoothingQuality = 'high';
-        const scale = Math.min(68 / img.width, 68 / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
+        const imgW = img.naturalWidth || img.width || 1000;
+        const imgH = img.naturalHeight || img.height || 1000;
+        const scale = Math.min(68 / imgW, 68 / imgH);
+        const w = imgW * scale;
+        const h = imgH * scale;
         tctx.drawImage(img, (68 - w) / 2, (68 - h) / 2, w, h);
       }).catch(err => console.error(err));
     }
@@ -311,9 +321,11 @@ async function loadColoringPage(index) {
   if (page && page.src) {
     try {
       const img = await loadStencilImage(page.src);
-      const scale = Math.min(baseCanvas.width / img.width, baseCanvas.height / img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
+      const imgW = img.naturalWidth || img.width || 1000;
+      const imgH = img.naturalHeight || img.height || 1000;
+      const scale = Math.min(baseCanvas.width / imgW, baseCanvas.height / imgH);
+      const w = imgW * scale;
+      const h = imgH * scale;
       const x = (baseCanvas.width - w) / 2;
       const y = (baseCanvas.height - h) / 2;
       baseCtx.imageSmoothingEnabled = true;
