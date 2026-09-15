@@ -23,6 +23,14 @@ baseCanvas.width = canvas.width;
 baseCanvas.height = canvas.height;
 const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
 
+// Dedicated offscreen canvas for stencil overlay & stencil mask (keeps stencil un-erasable)
+const stencilCanvas = document.createElement('canvas');
+stencilCanvas.width = canvas.width;
+stencilCanvas.height = canvas.height;
+const stencilCtx = stencilCanvas.getContext('2d', { willReadFrequently: true });
+let stencilMask = null; // Uint8Array(width * height): 1 = stencil line, 0 = fillable area
+let isStencilActive = false;
+
 // Objects array for stickers and shapes (vector)
 let objects = [];
 let selectedObj = null;
@@ -317,7 +325,7 @@ async function loadColoringPage(index) {
   initBaseCanvas();
   setupCtx(baseCtx);
 
-  const page = coloringPages[currentCategory][index];
+  const page = coloringPages[currentCategory] && coloringPages[currentCategory][index];
   if (page && page.src) {
     try {
       const img = await loadStencilImage(page.src);
@@ -328,13 +336,55 @@ async function loadColoringPage(index) {
       const h = imgH * scale;
       const x = (baseCanvas.width - w) / 2;
       const y = (baseCanvas.height - h) / 2;
-      baseCtx.imageSmoothingEnabled = true;
-      baseCtx.imageSmoothingQuality = 'high';
-      baseCtx.drawImage(img, x, y, w, h);
+
+      // Prepare stencil overlay canvas & mask
+      stencilCanvas.width = canvas.width;
+      stencilCanvas.height = canvas.height;
+      stencilCtx.clearRect(0, 0, stencilCanvas.width, stencilCanvas.height);
+      stencilCtx.imageSmoothingEnabled = true;
+      stencilCtx.imageSmoothingQuality = 'high';
+      stencilCtx.drawImage(img, x, y, w, h);
+
+      const width = stencilCanvas.width;
+      const height = stencilCanvas.height;
+      const sImgData = stencilCtx.getImageData(0, 0, width, height);
+      const sData = sImgData.data;
+      stencilMask = new Uint8Array(width * height);
+
+      for (let i = 0; i < width * height; i++) {
+        const idx = i * 4;
+        const r = sData[idx];
+        const g = sData[idx + 1];
+        const b = sData[idx + 2];
+        const a = sData[idx + 3];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Outline threshold: dark pixels with significant opacity
+        if (a > 80 && lum < 80) {
+          stencilMask[i] = 1;
+          sData[idx] = r;
+          sData[idx + 1] = g;
+          sData[idx + 2] = b;
+          sData[idx + 3] = a;
+        } else {
+          stencilMask[i] = 0;
+          // Make background transparent on the overlay stencilCanvas
+          sData[idx + 3] = 0;
+        }
+      }
+      stencilCtx.putImageData(sImgData, 0, 0);
+      isStencilActive = true;
+
+      // Draw initial stencil onto baseCanvas
+      baseCtx.drawImage(stencilCanvas, 0, 0);
     } catch (err) {
       console.error('Failed to load stencil:', page.src, err);
       showToast('Could not load stencil');
+      stencilMask = null;
+      isStencilActive = false;
     }
+  } else {
+    stencilMask = null;
+    isStencilActive = false;
   }
 
   objects = [];
@@ -351,6 +401,9 @@ function loadBlankCanvas() {
   playSfx('click');
   currentPageIndex = -1;
   currentUploadedImage = null;
+  stencilMask = null;
+  isStencilActive = false;
+  stencilCtx.clearRect(0, 0, stencilCanvas.width, stencilCanvas.height);
   initBaseCanvas();
   objects = [];
   selectedObj = null;
@@ -373,6 +426,9 @@ function resetCanvas() {
     baseCtx.imageSmoothingEnabled = true;
     baseCtx.imageSmoothingQuality = 'high';
     baseCtx.drawImage(currentUploadedImage, x, y, w, h);
+    if (isStencilActive && stencilCanvas) {
+      baseCtx.drawImage(stencilCanvas, 0, 0);
+    }
     objects = [];
     selectedObj = null;
     renderCanvas();
@@ -386,6 +442,11 @@ function resetCanvas() {
 function renderCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(baseCanvas, 0, 0);
+
+  // Stencil overlay on top to keep lines crisp and un-erasable
+  if (isStencilActive && stencilCanvas) {
+    ctx.drawImage(stencilCanvas, 0, 0);
+  }
 
   // Render objects (shapes and stickers)
   objects.forEach(obj => {
@@ -897,6 +958,11 @@ function draw(e) {
 function stopDrawing() {
   if (state.isDrawing) {
     state.isDrawing = false;
+    // Re-stamp stencil outlines to keep baseCanvas raster in sync and un-erasable
+    if (isStencilActive && stencilCanvas) {
+      baseCtx.drawImage(stencilCanvas, 0, 0);
+    }
+    renderCanvas();
     saveState();
   }
   if (state.isDragging || state.isResizing) {
@@ -998,14 +1064,14 @@ function floodFill(targetCtx, startX, startY, fillColor) {
   const fillRGB = hexToRgb(fillColor);
   if (!fillRGB) return;
 
-  const startIdx = (startY * width + startX) * 4;
+  const startPos = startY * width + startX;
+  const startIdx = startPos * 4;
   const startR = data[startIdx];
   const startG = data[startIdx + 1];
   const startB = data[startIdx + 2];
 
-  // Prevent filling dark stencil outlines (luminance threshold)
-  const startLuminance = 0.299 * startR + 0.587 * startG + 0.114 * startB;
-  if (startLuminance < 60) {
+  // Only prevent filling if clicked directly on an original stencil outline
+  if (isStencilActive && stencilMask && stencilMask[startPos] === 1) {
     showToast('Click inside an area to fill color!');
     return;
   }
@@ -1022,7 +1088,7 @@ function floodFill(targetCtx, startX, startY, fillColor) {
 
   queue[tail++] = startX;
   queue[tail++] = startY;
-  visited[startY * width + startX] = 1;
+  visited[startPos] = 1;
 
   const tolerance = 45;
 
@@ -1051,6 +1117,12 @@ function floodFill(targetCtx, startX, startY, fillColor) {
         const nPos = ny * width + nx;
         if (!visited[nPos]) {
           visited[nPos] = 1;
+
+          // Never cross stencil outlines if stencil is active
+          if (isStencilActive && stencilMask && stencilMask[nPos] === 1) {
+            continue;
+          }
+
           const nIdx = nPos * 4;
           const nR = data[nIdx];
           const nG = data[nIdx + 1];
@@ -1067,6 +1139,11 @@ function floodFill(targetCtx, startX, startY, fillColor) {
   }
 
   targetCtx.putImageData(imageData, 0, 0);
+
+  // If stencil is active, re-overlay stencil lines on target canvas
+  if (isStencilActive && stencilCanvas) {
+    targetCtx.drawImage(stencilCanvas, 0, 0);
+  }
 }
 
 function hexToRgb(hex) {
@@ -1091,15 +1168,60 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
       currentPageIndex = -2;
       initBaseCanvas();
 
-      const scale = Math.min(baseCanvas.width / img.width, baseCanvas.height / img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+      const scale = Math.min(baseCanvas.width / imgW, baseCanvas.height / imgH);
+      const w = imgW * scale;
+      const h = imgH * scale;
       const x = (baseCanvas.width - w) / 2;
       const y = (baseCanvas.height - h) / 2;
 
       baseCtx.imageSmoothingEnabled = true;
       baseCtx.imageSmoothingQuality = 'high';
       baseCtx.drawImage(img, x, y, w, h);
+
+      // Create stencil mask for uploaded image if it contains outlines
+      stencilCanvas.width = canvas.width;
+      stencilCanvas.height = canvas.height;
+      stencilCtx.clearRect(0, 0, stencilCanvas.width, stencilCanvas.height);
+      stencilCtx.imageSmoothingEnabled = true;
+      stencilCtx.imageSmoothingQuality = 'high';
+      stencilCtx.drawImage(img, x, y, w, h);
+
+      const width = stencilCanvas.width;
+      const height = stencilCanvas.height;
+      const sImgData = stencilCtx.getImageData(0, 0, width, height);
+      const sData = sImgData.data;
+      stencilMask = new Uint8Array(width * height);
+      let darkCount = 0;
+
+      for (let i = 0; i < width * height; i++) {
+        const idx = i * 4;
+        const r = sData[idx];
+        const g = sData[idx + 1];
+        const b = sData[idx + 2];
+        const a = sData[idx + 3];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (a > 80 && lum < 80) {
+          stencilMask[i] = 1;
+          sData[idx] = r;
+          sData[idx + 1] = g;
+          sData[idx + 2] = b;
+          sData[idx + 3] = a;
+          darkCount++;
+        } else {
+          stencilMask[i] = 0;
+          sData[idx + 3] = 0;
+        }
+      }
+
+      if (darkCount > 100) {
+        stencilCtx.putImageData(sImgData, 0, 0);
+        isStencilActive = true;
+      } else {
+        stencilMask = null;
+        isStencilActive = false;
+      }
 
       objects = [];
       selectedObj = null;
@@ -1166,6 +1288,9 @@ function restoreState(stateObj) {
   img.onload = function () {
     baseCtx.clearRect(0, 0, baseCanvas.width, baseCanvas.height);
     baseCtx.drawImage(img, 0, 0);
+    if (isStencilActive && stencilCanvas) {
+      baseCtx.drawImage(stencilCanvas, 0, 0);
+    }
     objects = JSON.parse(JSON.stringify(stateObj.objs));
     selectedObj = null;
     renderCanvas();
@@ -1182,7 +1307,7 @@ function downloadPNG() {
   renderCanvas();
 
   const link = document.createElement('a');
-  link.download = `coloring-masterpiece-${Date.now()}.png`;
+  link.download = `kiddy-learn-draw-${Date.now()}.png`;
   link.href = canvas.toDataURL('image/png');
   link.click();
 
@@ -1199,7 +1324,7 @@ function printCanvas() {
   renderCanvas();
 
   const dataUrl = canvas.toDataURL('image/png');
-  let windowContent = '<!DOCTYPE html><html><head><title>Print Coloring Masterpiece</title>';
+  let windowContent = '<!DOCTYPE html><html><head><title>Print Kiddy Learn Draw</title>';
   windowContent += '<style>@page { size: auto; margin: 0mm; } body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; } img { max-width: 100%; max-height: 100vh; }</style>';
   windowContent += '</head><body>';
   windowContent += `<img src="${dataUrl}" onload="window.print();window.close()">`;
